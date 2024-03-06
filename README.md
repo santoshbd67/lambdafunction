@@ -39,7 +39,6 @@
 
 * Choose "CloudWatch Events" from the trigger options.
 
-* Configure a new rule or select an existing one. Set the rule schedule according to how frequently you want to check for insecure     
-     security groups.
+* Configure a new rule or select an existing one. Set the rule schedule according to how frequently you want to check for insecure  security groups.
 
 * Click on "Add."
