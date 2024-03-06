@@ -1,0 +1,54 @@
+import boto3
+import json
+import os
+
+def lambda_handler(event, context):
+    try:
+        # Initialize AWS clients
+        ec2_client = boto3.client('ec2')
+        sns_client = boto3.client('sns')
+
+        # Get all security groups
+        response = ec2_client.describe_security_groups()
+        insecure_security_groups = []
+
+        # Check each security group for open access (0.0.0.0/0)
+        for group in response['SecurityGroups']:
+            for permission in group['IpPermissions']:
+                for ip_range in permission.get('IpRanges', []):
+                    if ip_range.get('CidrIp') == '0.0.0.0/0':
+                        insecure_security_groups.append(group['GroupId'])
+
+        # Retrieve SNS topic ARN
+        sns_topic_arn = os.environ.get('SNS_TOPIC_ARN')
+
+        if not sns_topic_arn:
+            raise KeyError("SNS_TOPIC_ARN environment variable not set")
+
+        if insecure_security_groups:
+            # Send SNS notification
+            sns_subject = "Insecure Security Groups Detected"
+            sns_message = f"The following security groups are open to 0.0.0.0/0 please take action on this:\n\n{json.dumps(insecure_security_groups, indent=2)}"
+
+            sns_client.publish(
+                TopicArn=sns_topic_arn,
+                Subject=sns_subject,
+                Message=sns_message
+            )
+
+            return {
+                'statusCode': 200,
+                'body': json.dumps('SNS notification sent successfully')
+            }
+        else:
+            return {
+                'statusCode': 200,
+                'body': json.dumps('No insecure security groups found')
+            }
+
+    except Exception as e:
+        return {
+            'statusCode': 500,
+            'body': json.dumps(f'Error: {str(e)}')
+        }
+

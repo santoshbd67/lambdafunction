@@ -1,0 +1,57 @@
+import boto3
+from datetime import datetime, timedelta
+import json
+import os
+
+def lambda_handler(event, context):
+    # Initialize AWS clients
+    ec2_client = boto3.client('ec2')
+    sns_client = boto3.client('sns')
+
+    # Calculate the date 30 days ago from the current date
+    thirty_days_ago = datetime.utcnow() - timedelta(days=30)
+
+    # Convert the datetime object to a string in the required format
+    formatted_date = thirty_days_ago.strftime('%Y-%m-%dT%H:%M:%SZ')
+
+    # Describe instances with the 'stopped' state and launch time greater than 30 days ago
+    response = ec2_client.describe_instances(
+        Filters=[
+            {'Name': 'instance-state-name', 'Values': ['stopped']},
+            {'Name': 'launch-time', 'Values': [formatted_date]}
+        ]
+    )
+
+    stopped_instances = []
+
+    # Extract instance details
+    for reservation in response['Reservations']:
+        for instance in reservation['Instances']:
+            instance_details = {
+                'InstanceId': instance['InstanceId'],
+                'LaunchTime': str(instance['LaunchTime']),
+                'State': instance['State']['Name']
+            }
+            stopped_instances.append(instance_details)
+
+    # Send SNS notification if there are stopped instances
+    if stopped_instances:
+        sns_topic_arn = os.environ.get('SNS_TOPIC_ARN')
+
+        if not sns_topic_arn:
+            raise ValueError("SNS_TOPIC_ARN environment variable not set")
+
+        sns_subject = "Stopped Instances in the Last 30 Days"
+        sns_message = f"The following instances have been stopped in the last 30 days:\n\n{json.dumps(stopped_instances, indent=2)}"
+
+        sns_client.publish(
+            TopicArn=sns_topic_arn,
+            Subject=sns_subject,
+            Message=sns_message
+        )
+
+    return {
+        'statusCode': 200,
+        'body': json.dumps('Lambda function executed successfully')
+    }
+
