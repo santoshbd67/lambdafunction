@@ -42,3 +42,12 @@
 * Configure a new rule or select an existing one. Set the rule schedule according to how frequently you want to check for insecure  security groups.
 
 * Click on "Add."
+ # Test the Lambda Function:
+ * Manually trigger the Lambda function for testing purposes.
+
+* Check the CloudWatch Logs for the Lambda function to view the execution output and any potential errors.
+
+ # Monitor Emails:
+ * Verify that SNS is sending emails by checking the email address specified in Subscription.
+
+ * Monitor the Lambda function's CloudWatch Logs for any issues.
