@@ -1,0 +1,77 @@
+import boto3
+import json
+from datetime import datetime, timedelta
+import os  # Import the 'os' module
+
+def lambda_handler(event, context):
+    # Initialize AWS clients
+    ec2_client = boto3.client('ec2')
+    cloudwatch_client = boto3.client('cloudwatch')
+    sns_client = boto3.client('sns')
+
+    # Retrieve all running instances
+    response = ec2_client.describe_instances(Filters=[{'Name': 'instance-state-name', 'Values': ['running']}])
+
+    # List to store logs
+    logs = []
+
+    for reservation in response['Reservations']:
+        for instance in reservation['Instances']:
+            # Retrieve instance ID and region
+            instance_id = instance['InstanceId']
+            region = ec2_client.meta.region_name
+
+            # Calculate start time and end time for the last 5 minutes
+            end_time = datetime.utcnow()
+            start_time = end_time - timedelta(minutes=5)
+
+            # Retrieve CPU utilization
+            cpu_response = cloudwatch_client.get_metric_statistics(
+                Namespace='AWS/EC2',
+                MetricName='CPUUtilization',
+                Dimensions=[{'Name': 'InstanceId', 'Value': instance_id}],
+                StartTime=start_time,
+                EndTime=end_time,
+                Period=60,  # 1-minute intervals
+                Statistics=['Average']
+            )
+
+            if 'Datapoints' in cpu_response and cpu_response['Datapoints']:
+                cpu_utilization = cpu_response['Datapoints'][-1]['Average']
+                logs.append(f"Instance {instance_id} - CPU Utilization: {cpu_utilization}%")
+
+            # Retrieve memory utilization
+            memory_response = cloudwatch_client.get_metric_statistics(
+                Namespace='CWAgent',
+                MetricName='MemoryUtilization',
+                Dimensions=[{'Name': 'InstanceId', 'Value': instance_id}],
+                StartTime=start_time,
+                EndTime=end_time,
+                Period=60,  # 1-minute intervals
+                Statistics=['Average']
+            )
+
+            if 'Datapoints' in memory_response and memory_response['Datapoints']:
+                memory_utilization = memory_response['Datapoints'][-1]['Average']
+                logs.append(f"Instance {instance_id} - Memory Utilization: {memory_utilization}%")
+
+    # Send logs via SNS
+    sns_topic_arn = os.environ.get('SNS_TOPIC_ARN')
+
+    if not sns_topic_arn:
+        raise ValueError("SNS_TOPIC_ARN environment variable not set")
+
+    sns_subject = "Instance Utilization Logs"
+    sns_message = "\n".join(logs)
+
+    if sns_message:
+        sns_client.publish(
+            TopicArn=sns_topic_arn,
+            Subject=sns_subject,
+            Message=sns_message
+        )
+
+    return {
+        'statusCode': 200,
+        'body': json.dumps('Lambda function executed successfully')
+    }
