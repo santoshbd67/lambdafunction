@@ -1,6 +1,6 @@
-1. Set up SES (Simple Email Service):
-Go to the AWS Management Console.
+# Set up SES (Simple Email Service):
+* Go to the AWS Management Console.
 
-Navigate to the Amazon SNS service.
+* Navigate to the Amazon SNS service.
 
-Create SNS topic and add the Subscription
+* Create SNS topic and add the Subscription
